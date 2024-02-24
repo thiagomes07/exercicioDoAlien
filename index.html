@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link
+      rel="shortcut icon"
+      href="assets/astronautHelmet.ico"
+      type="image/x-icon"
+    />
+    <script src="//cdn.jsdelivr.net/npm/phaser@3.80.0/dist/phaser.min.js"></script>
+    <title>Exercício do Astronauta</title>
+    <style>
+      body {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin: 0;
+        background: linear-gradient(to bottom, #2e1a47, #040b14);
+      }
+
+      div#austronautGame {
+        box-shadow: 0 0 15px #000;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="austronautGame"></div>
+    <script>
+      // Variável para criar o jogo definindo as configurações mais importantes, como: altura, largura, cenas, gravidade, etc.
+      var config = {
+        type: Phaser.AUTO,
+        width: 700,
+        height: 850,
+        parent: "austronautGame",
+        pixelart: true,
+        physics: {
+          default: "arcade",
+          arcade: { gravity: { y: 500 } },
+        },
+        scene: {
+          preload: preload,
+          create: create,
+          update: update,
+        },
+      };
+
+      var game = new Phaser.Game(config); // Cria jogo com as configurações setadas em config
+
+      // Variáveis para altura e largura do jogo
+      var gameWidth = config.width;
+      var gameHeight = config.height;
+
+      // Variáveis que receberão os elementos do jogo
+      var moon;
+      var moonRocks;
+      var astronaut;
+      var fire;
+      var alien;
+      var scoreboard;
+
+      // Variável que receberá o número de pontos
+      var scoreAlien = 0;
+      var scoreAstronaut = 0;
+
+      var ramdomSecconds = Phaser.Math.FloatBetween(5000, 10000); // Número randômico para "aleatorizar" a geração de novos aliens
+
+      //Variável que recebrá o mapeamento de teclas
+      var keyboard;
+
+      // Função para carregar os assets a serem usados no jogo
+      function preload() {
+        this.load.image("space", "assets/space.jpg"); // Carrega background
+        this.load.image("moon", "assets/moon.png"); // Carrega a plataforma principal
+        this.load.image("moonRock", "assets/moonRock.png"); // Carrega as plataformas secundárias
+        this.load.image("alien", "assets/alien.png"); // Carrega o alien
+
+        this.load.spritesheet("astronaut", "assets/astronautIdle.png", {
+          frameWidth: 32, // Largura de cada frame do sprite
+          frameHeight: 32, // Altura de cada frame do sprite
+        }); // Carrega a spritesheet do astronauta
+
+        this.load.spritesheet("fire", "assets/fire.png", {
+          frameWidth: 24,
+          frameHeight: 24,
+        });
+      }
+
+      // Função na qual você coloca elementos que serão criados, isso vai de elementos estéticos até elemenos físicos invisíveis
+      function create() {
+        this.add.image(gameWidth / 2, gameHeight / 2, "space"); // Adiciona Background à tela posicionada no centro
+        moon = this.physics.add
+          .staticImage(gameWidth / 2, gameHeight - 40, "moon")
+          .refreshBody(); // Atualiza os comportamentos físicos do elemento
+
+        moonRocks = this.physics.add.staticGroup(); // Cria as plataformas de lua como um grupo estático
+        const moonRockPositions = [ // !!!!!!!!!!!!!!!!!!!!!!LISTA DE DADOS SOLICITADA NA ATIVIDADE!!!!!!!!!!!!!!!!!!!!!!
+          // Objeto com as posições em que serão criadas as platafomras
+          { x: 90, y: 600 },
+          { x: 200, y: 620 },
+          { x: 620, y: 700 },
+          { x: 550, y: 380 },
+          { x: 100, y: 200 },
+        ];
+        moonRockPositions.forEach((moonRock) => {
+          // Itera sobre as posições das plataformas e em cada iteração, uma plataforma nova é criada
+          moonRocks.create(moonRock.x, moonRock.y, "moonRock"); // Crias as plataformas nas posições do objeto moonRockPositions
+        });
+
+        astronaut = this.physics.add // Adiciona o astronauto e define que ele irá interagir com a física do jogo
+          .sprite(gameWidth / 2, 0, "astronaut")
+          .setScale(3) // DEfine o tamanho
+          .setBounce(0.25) // O quanto o objeto quica
+          .setCollideWorldBounds(true); // Colide com os limites do mundo
+
+        astronaut.body.setSize(10, 32);
+
+        astronaut.setDepth(1); // Defione uma camada maior que a camada do fogo para ele ser renderizado na frente do fogo
+
+        // Cria a animação de respiração do astronauta
+        this.anims.create({
+          key: "idle", // Nome da animação
+          // Cria frames para formar uma animação a partir dos sprites do spritesheet do astronauta
+          frames: this.anims.generateFrameNumbers("astronaut", {
+            start: 0, // número do frame inicial da animação no spritesheet
+            end: 7, // número do frame de finalização da animação no spritesheet
+          }),
+          frameRate: 12, //  Quantidade de troca de imagem por segundo
+          repeat: -1, // loop infinito
+        });
+
+        astronaut.anims.play("idle", true); // Inicia a animação
+
+        // Adiciona colisões entre elementos:
+        this.physics.add.collider(astronaut, moon);
+        this.physics.add.collider(astronaut, moonRocks);
+
+        fire = this.add
+          .sprite(0, 0, "fire")
+          .setVisible(false)
+          .setScale(2.5)
+          .setFlipY(true); // Deixa o fogo de ponta cabeça
+
+        fire.setDepth(0); // Defione uma camada menor que a camada do astronauta para ele ser renderizado atrás do astronauta
+
+        // Cria a animação da fogo do astronauta
+        this.anims.create({
+          key: "fireMovement",
+          frames: this.anims.generateFrameNumbers("fire", {
+            start: 0,
+            end: 6,
+          }),
+          frameRate: 20,
+          repeat: -1,
+        });
+
+        fire.anims.play("fireMovement", true);
+
+        alien = this.physics.add
+          .sprite(100, 0, "alien")
+          .setScale(0.025)
+          .setCollideWorldBounds(true)
+          .setBounce(0.7);
+
+        this.physics.add.collider(alien, moonRocks);
+        this.physics.add.collider(alien, moon);
+
+        scoreboard = this.add.text(
+          30,
+          20,
+          "Aliens: " + scoreAlien + "  X  Astronauta: " + scoreAstronaut,
+          {
+            fontSize: "40px",
+            fill: "#fff",
+          }
+        );
+        console.log(scoreboard);
+
+        this.physics.add.overlap(astronaut, alien, () => {
+          // Caso o astronauta pase por cima ddo alien:
+          dropAlien("astronaut");
+        });
+
+        keyboard = this.input.keyboard.createCursorKeys(); // Mapeia as teclas do teclado e armazena na variável keyboard
+      }
+
+      function update() {
+        // teclas cima e baixo para alterar se ele sobre ou desce
+        if (keyboard.up.isDown) {
+          // Se a tecla seta cima foi pressionada
+          astronaut.setVelocityY(-300); // Define a velocidade do elemento no eixo y
+          activatefire(true);
+        } else if (keyboard.down.isDown) {
+          // Se a tecla seta baixo foi pressionada
+          astronaut.setVelocityY(600);
+          activatefire(false); // Torna o fogo visível
+        } else {
+          activatefire(false);
+        }
+
+        // Teclas direita e esquerda para controlar se ele vai para direita ou para esquerda
+        if (keyboard.left.isDown) {
+          // Se a tecla seta esquerda foi pressionada
+          astronaut.setVelocityX(-200); // Define a velocidade no eixo x
+        } else if (keyboard.right.isDown) {
+          // Se a tecla seta direita foi pressionada
+          astronaut.setVelocityX(200);
+          // abaixo está o código para reduzir a velocidade do astronauta gradativamente simulando o movimento retardado em gravidade lunar
+        } else if (astronaut.body.velocity.x < 0) {
+          astronaut.body.velocity.x += 5; // Se a velocidade lateral for menor que 0 (persnagem indo à esquerda), aumentar a velocidade gradativamente
+        } else if (astronaut.body.velocity.x > 0) {
+          astronaut.body.velocity.x -= 5; // Se a velocidade lateral for maior que 0 (persnagem indo à direita), reduzir a velocidade gradativamente
+        } else if (astronaut.body.velocity == 0) {
+          astronaut.setVelocityX(0); // Setar velocidade como 0 para o personagem não se deslocar infinitamente
+        }
+
+        fire.setPosition(astronaut.x + 5, astronaut.y + 70); // Posiciona o fogo abaixo do astronauta
+      }
+
+      // Função para criar novos aliens e soltá-los do céu
+      function dropAlien(point) {
+        let randomAlienPositionX = Phaser.Math.Between(50, 960); // Gera um número aleatório para soltar o alien de uma posição diferete sempre
+        ramdomSecconds = Phaser.Math.Between(3000, 7000); // Gera um número aleatório para alterar o intervalo entre o disparo de dropSlien
+
+        alien.setVisible(false);
+
+        if (point === "alien") {
+          // Teste de a função foi executada no contxto do astronauta ter pego o alien ou do alien reaparecer
+          scoreAlien++; // Se alien, ponto do alien
+          scoreboard.setText(
+            "Aliens: " + scoreAlien + "  X  Astronauta: " + scoreAstronaut
+          );
+        } else {
+          // Caso contrário, ponto do astronauta
+          scoreAstronaut++;
+          scoreboard.setText(
+            "Aliens: " + scoreAlien + "  X  Astronauta: " + scoreAstronaut
+          );
+        }
+
+        alien.setPosition(randomAlienPositionX, 100);
+        alien.setVisible(true);
+      }
+
+      // Roda a função de soltar um novo alien de cima continuamente com intervalos randômicos
+      setInterval(() => {
+        // Função anônima criada porque o setInterval não aceita função com passagem de parâmetro
+        dropAlien("alien");
+      }, ramdomSecconds);
+
+      function activatefire(active) {
+        fire.setVisible(active); // Define a visibilidade de um elemento de acordo com o parâmetro passado à função
+      }
+    </script>
+  </body>
+</html>
